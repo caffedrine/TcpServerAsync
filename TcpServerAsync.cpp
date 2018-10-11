@@ -234,6 +234,4 @@ void TcpServerAsync::DataReceived(const TcpServerAsync::client_t *client, char *
 void TcpServerAsync::DataSend(const TcpServerAsync::client_t *client, int bytesSend)
 {
 	printf("[%d %s:%d] SEND: %d bytes\n", client->Fd, client->Ip, client->Port, bytesSend);
-
 }
-
