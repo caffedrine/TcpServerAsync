@@ -58,7 +58,7 @@ private:
 	
 	//set of socket descriptors
 	fd_set readfds;
-	int max_sd, sd, activity;
+	int max_sd, activity;
 	
 	ssize_t Readbytes = 0;
 	char RecvBuffer[RECV_BUFFER_SIZE] = {'\0'};

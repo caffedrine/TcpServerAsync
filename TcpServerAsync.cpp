@@ -87,6 +87,7 @@ void TcpServerAsync::Stop()
 	/* Close server socked fd */
 	shutdown(this->ServerSocket, SHUT_RDWR);
 	close(this->ServerSocket);
+	this->ServerSocket = 0;
 	Status = STOPPED;
 	
 	std::cout << "Server stopped!" << std::endl;
@@ -104,24 +105,25 @@ void TcpServerAsync::BackgroundWork()
 	{
 		/* clear the socket set */
 		FD_ZERO(&this->readfds);
+		this->max_sd = 0;
 		
-		/* Add serer socket socket to set */
-		FD_SET(this->ServerSocket, &readfds);
-		this->max_sd = this->ServerSocket;
+		/* Add serer socket socket to set only if it is open*/
+		if(this->ServerSocket > 0)
+		{
+			FD_SET(this->ServerSocket, &readfds);
+			this->max_sd = this->ServerSocket;
+		}
 		
 		//add child sockets to set
 		for( uint16_t i = 0; i < this->MaxClients; i++ )
 		{
-			//socket descriptor
-			sd = ClientsArray[i].Fd;
-			
 			//if valid socket descriptor then add to read list
-			if( sd > 0 )
-				FD_SET(sd, &readfds);
+			if( ClientsArray[i].Fd > 0 )
+				FD_SET(ClientsArray[i].Fd, &readfds);
 			
 			//highest file descriptor number, need it for the select function
-			if( sd > max_sd )
-				max_sd = sd;
+			if( ClientsArray[i].Fd > max_sd )
+				max_sd = ClientsArray[i].Fd;
 		}
 		
 		//wait for an activity on one of the sockets , timeout is NULL ,
@@ -187,15 +189,14 @@ void TcpServerAsync::BackgroundWork()
 		//else its some IO operation on some other socket
 		for( int i = 0; i < MaxClients; i++ )
 		{
-			sd = ClientsArray[i].Fd;
-			if( FD_ISSET(sd, &readfds) )
+			if( FD_ISSET(ClientsArray[i].Fd, &readfds) )
 			{
 				//Check if it was for closing , and also read the
 				//incoming message
-				if( (this->Readbytes = read(sd, RecvBuffer, RECV_BUFFER_SIZE)) == 0 )
+				if( (this->Readbytes = read(ClientsArray[i].Fd, RecvBuffer, RECV_BUFFER_SIZE)) == 0 )
 				{
 					//Somebody disconnected , get his details and print
-					close(sd);
+					close(ClientsArray[i].Fd);
 					ClientsArray[i].Fd = 0;
 					/* Push a notification */
 					ClientDisconnected( &ClientsArray[i] );
