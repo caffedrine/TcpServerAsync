@@ -10,7 +10,7 @@ TcpServerAsync::TcpServerAsync(uint16_t port, uint16_t max_clients)
 	/* Validate port */
 	if( port < 1024 || port > 65535 )
 	{
-		throw ("The listening port must be in interval [1024-65535]");
+		throw Exception("TcpServerAsync", "The listening port must be in interval [1024-65535]");
 	}
 	this->ServerPort = port;
 	
@@ -38,8 +38,7 @@ void TcpServerAsync::Start()
 	/* Create server socket handler */
 	if( (this->ServerSocket = socket(AF_INET, SOCK_STREAM, 0)) == 0 )
 	{
-		perror("socket failed");
-		throw ("Failed to create a new socket!");
+		throw Exception("Start->socket", strerror(errno));
 	}
 	
 	/* Allow multiple clients */
@@ -48,7 +47,7 @@ void TcpServerAsync::Start()
 	if( setsockopt(this->ServerSocket, SOL_SOCKET, SO_REUSEADDR, &optval, optlen) < 0 )
 	{
 		perror("setsockopt");
-		throw ("Failed to enable multiple clients opt");
+		throw Exception("Start()->setsockpt", strerror(errno));
 	}
 	
 	/* Create server IP structure */
@@ -60,15 +59,13 @@ void TcpServerAsync::Start()
 	/* Bind to localhost:ServerPort */
 	if( bind(this->ServerSocket, (const sockaddr *) &server, sizeof(server)) < 0 )
 	{
-		perror("bind failed");
-		throw ("Can't bind server socket! Port already in use?");
+		throw Exception("Start()->bind", strerror(errno));
 	}
 	
 	/* Set maximum pending connecions: 3 */
 	if( listen(this->ServerSocket, 3) < 0 )
 	{
-		perror("listen");
-		throw ("Can't start listening on given port!");
+		throw Exception("Start->listen", strerror(errno));
 	}
 	
 	Status = STARTED;
@@ -132,8 +129,7 @@ void TcpServerAsync::BackgroundWork()
 		
 		if( (activity < 0) && (errno != EINTR) )
 		{
-			printf("select error");
-			throw ("Select failed!");
+			throw Exception("select", strerror(errno));
 		}
 		
 		//If something happened on the master socket ,
@@ -164,7 +160,7 @@ void TcpServerAsync::BackgroundWork()
 				{
 					char msg[] = "MAX_CONNECTION_REACHED\r\n";
 					if( send(tmp_sock, msg, strlen(msg), 0) != strlen(msg))
-						perror("send");
+						throw Exception("send", strerror(errno));
 					close(tmp_sock);
 				}
 			}
@@ -173,8 +169,7 @@ void TcpServerAsync::BackgroundWork()
 				int addrlen = sizeof(CurrentClientSlot->address);
 				if( (CurrentClientSlot->Fd = accept(this->ServerSocket, (struct sockaddr *) &CurrentClientSlot->address, (socklen_t *) &addrlen)) < 0 )
 				{
-					perror("accept");
-					throw("Error accepting a new connection!");
+					throw Exception("accept", strerror(errno));
 				}
 				
 				/* Set IP and port variables */
