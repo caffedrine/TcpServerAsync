@@ -73,7 +73,7 @@ void TcpServerAsync::Start()
 	BackgroundWorker = std::thread([this](){ BackgroundWork(); });
 	BackgroundWorker.detach();
 	
-	std::cout << "Server started!" << std::endl;
+	std::cout << "Server started on port " << this->ServerPort << std::endl;
 }
 
 void TcpServerAsync::Stop()
