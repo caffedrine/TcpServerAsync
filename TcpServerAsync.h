@@ -34,6 +34,14 @@ public:
 		struct sockaddr_in address;
 	}client_t;
 	
+	struct Exception : public std::exception
+	{
+		std::string s;
+		explicit Exception(std::string ss): s(ss) {}
+		Exception(std::string function, std::string ss) : s( function + "(): " + ss ) {}
+		~Exception() throw () {} // Updated
+		const char* what() const throw() override { return s.c_str(); }
+	};
 	static const uint16_t RECV_BUFFER_SIZE = 256;
 	
 	TcpServerAsync(uint16_t port, uint16_t max_clients);
