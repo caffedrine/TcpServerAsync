@@ -10,7 +10,7 @@ TcpServerAsync::TcpServerAsync(uint16_t port, uint16_t max_clients)
 	/* Validate port */
 	if( port < 1024 || port > 65535 )
 	{
-		throw Exception("TcpServerAsync", "The listening port must be in interval [1024-65535]");
+		throw ("The listening port must be in interval [1024-65535]");
 	}
 	this->ServerPort = port;
 	
@@ -38,7 +38,8 @@ void TcpServerAsync::Start()
 	/* Create server socket handler */
 	if( (this->ServerSocket = socket(AF_INET, SOCK_STREAM, 0)) == 0 )
 	{
-		throw Exception("Start->socket", strerror(errno));
+		perror("socket failed");
+		throw ("Failed to create a new socket!");
 	}
 	
 	/* Allow multiple clients */
@@ -47,7 +48,7 @@ void TcpServerAsync::Start()
 	if( setsockopt(this->ServerSocket, SOL_SOCKET, SO_REUSEADDR, &optval, optlen) < 0 )
 	{
 		perror("setsockopt");
-		throw Exception("Start()->setsockpt", strerror(errno));
+		throw ("Failed to enable multiple clients opt");
 	}
 	
 	/* Create server IP structure */
@@ -59,13 +60,15 @@ void TcpServerAsync::Start()
 	/* Bind to localhost:ServerPort */
 	if( bind(this->ServerSocket, (const sockaddr *) &server, sizeof(server)) < 0 )
 	{
-		throw Exception("Start()->bind", strerror(errno));
+		perror("bind failed");
+		throw ("Can't bind server socket! Port already in use?");
 	}
 	
 	/* Set maximum pending connecions: 3 */
 	if( listen(this->ServerSocket, 3) < 0 )
 	{
-		throw Exception("Start->listen", strerror(errno));
+		perror("listen");
+		throw ("Can't start listening on given port!");
 	}
 	
 	Status = STARTED;
@@ -73,7 +76,7 @@ void TcpServerAsync::Start()
 	BackgroundWorker = std::thread([this](){ BackgroundWork(); });
 	BackgroundWorker.detach();
 	
-	std::cout << "Server started on port " << this->ServerPort << std::endl;
+	//std::cout << "Server started!" << std::endl;
 }
 
 void TcpServerAsync::Stop()
@@ -87,13 +90,13 @@ void TcpServerAsync::Stop()
 	this->ServerSocket = 0;
 	Status = STOPPED;
 	
-	std::cout << "Server stopped!" << std::endl;
+	//std::cout << "Server stopped!" << std::endl;
 }
 
-int TcpServerAsync::Write(const client_t *client, char *data)
+int TcpServerAsync::Write(const client_t *client, const char *data, int len)
 {
-	int SendResult = (int)send(client->Fd, data, strlen(data), 0);
-	DataSend(client, SendResult);
+	int SendResult = (int)send(client->Fd, data, (size_t)len, 0);
+	DataSend(client, data, SendResult);
 }
 
 void TcpServerAsync::BackgroundWork()
@@ -129,7 +132,8 @@ void TcpServerAsync::BackgroundWork()
 		
 		if( (activity < 0) && (errno != EINTR) )
 		{
-			throw Exception("select", strerror(errno));
+			printf("select error");
+			throw ("Select failed!");
 		}
 		
 		//If something happened on the master socket ,
@@ -160,7 +164,7 @@ void TcpServerAsync::BackgroundWork()
 				{
 					char msg[] = "MAX_CONNECTION_REACHED\r\n";
 					if( send(tmp_sock, msg, strlen(msg), 0) != strlen(msg))
-						throw Exception("send", strerror(errno));
+						perror("send");
 					close(tmp_sock);
 				}
 			}
@@ -169,7 +173,8 @@ void TcpServerAsync::BackgroundWork()
 				int addrlen = sizeof(CurrentClientSlot->address);
 				if( (CurrentClientSlot->Fd = accept(this->ServerSocket, (struct sockaddr *) &CurrentClientSlot->address, (socklen_t *) &addrlen)) < 0 )
 				{
-					throw Exception("accept", strerror(errno));
+					perror("accept");
+					throw("Error accepting a new connection!");
 				}
 				
 				/* Set IP and port variables */
@@ -196,14 +201,12 @@ void TcpServerAsync::BackgroundWork()
 					/* Push a notification */
 					ClientDisconnected( &ClientsArray[i] );
 				}
-					
-					//Echo back the message that came in
 				else
 				{
 					//set the string terminating NULL byte on the end
 					//of the data read
 					RecvBuffer[this->Readbytes] = '\0';
-					DataReceived(&ClientsArray[i], RecvBuffer);
+					DataReceived(&ClientsArray[i], RecvBuffer, (int)this->Readbytes);
 				}
 			}
 		}
@@ -220,13 +223,12 @@ void TcpServerAsync::ClientDisconnected(const TcpServerAsync::client_t *client)
 	printf("[%d %s:%d] DISCONNECTED\n", client->Fd, client->Ip, client->Port);
 }
 
-void TcpServerAsync::DataReceived(const TcpServerAsync::client_t *client, char *data)
+void TcpServerAsync::DataReceived(const TcpServerAsync::client_t *client, char *data, int length)
 {
-	printf("[%d %s:%d] RECV: %s\n", client->Fd, client->Ip, client->Port, data);
-	//this->Write(client, data);
+	printf("[%d %s:%d] RECV  (%d bytes): %s\n", client->Fd, client->Ip, client->Port, length, data);
 }
 
-void TcpServerAsync::DataSend(const TcpServerAsync::client_t *client, int bytesSend)
+void TcpServerAsync::DataSend(const TcpServerAsync::client_t *client, const char *data, int bytesSend)
 {
-	printf("[%d %s:%d] SEND: %d bytes\n", client->Fd, client->Ip, client->Port, bytesSend);
+	printf("[%d %s:%d] SEND: (%d bytes): %s\n", client->Fd, client->Ip, client->Port, bytesSend, data);
 }
